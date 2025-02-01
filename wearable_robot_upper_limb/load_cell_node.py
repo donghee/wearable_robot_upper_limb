@@ -2,6 +2,11 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32
 
+# hx711 library use the old GPIO code, for using hx711 library, you need to install rpi-lgpio in raspberry pi 5
+#sudo apt remove python3-rpi.gpio 
+#sudo apt-get install python3-pip
+#pip install rpi-lgpio
+#pip install hx711
 import RPi.GPIO as GPIO
 from hx711 import HX711
 import time

@@ -5,7 +5,7 @@ from dynamixel_sdk_custom_interfaces.msg import SetPosition
 class DynamixelPositionPublisher(Node):
 
     def __init__(self):
-        super().__init__('wearable_device_upper_limb_controller')
+        super().__init__('wearable_robot_upper_limb_controller')
         self.publisher_ = self.create_publisher(SetPosition, '/set_position', 10)
         timer_period = 0.1  # seconds (10Hz)
         self.timer = self.create_timer(timer_period, self.timer_callback)
