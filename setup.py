@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'wearable_device_1dof'
+package_name = 'wearable_device_upper_limb'
 
 setup(
     name=package_name,
