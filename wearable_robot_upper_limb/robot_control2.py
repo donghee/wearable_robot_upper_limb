@@ -366,8 +366,9 @@ class UpperLimbNode(Node):
         return 0.0  # TODO need error handling
 
     def handle_command(self, request, response):
-        print(f"Received command: {request.mode} {request.button[0]} {request.button[1]}")
+        print(f"Received command: Task {request.task} and {request.command}")
         response.success = True
+        response.message = "Command received"
         return response
 
 def disable_torque():

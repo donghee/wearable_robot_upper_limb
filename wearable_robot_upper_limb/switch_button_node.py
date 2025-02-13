@@ -9,37 +9,89 @@ from rclpy.node import Node
 import RPi.GPIO as GPIO
 import time
 import threading
+from wearable_robot_upper_limb_msgs.srv import UpperLimbCommand
+
+# RPi.GPIO BCM pin number
+START_BUTTON_PIN = 23
+RESET_BUTTON_PIN = 24
+TASK3_BUTTON_PIN = 25
+TASK1_BUTTON_PIN = 8
 
 class UpperLimbCommanderNode(Node):
     def __init__(self):
         super().__init__('upper_limb_commander_node')
-
-        self.button_states = [False] * 3
-        self.lock = threading.Lock()
-        self.stop_thread = threading.Event()
+        self.button_states = {START_BUTTON_PIN: False, RESET_BUTTON_PIN: False, TASK3_BUTTON_PIN: False, TASK1_BUTTON_PIN: False}
 
         self.get_logger().info("Initializing gpio button.")
 
-        self.read_thread = threading.Thread(target=self.read_switch_button_loop)
+        # Service
+        self.selected_task = 2
+        self.upper_limb_command_client = self.create_client(UpperLimbCommand, 'upper_limb_command')
+        
+        while not self.upper_limb_command_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for service upper_limb_command...')
+
+        # Read button states in a separate thread
+        self.lock = threading.Lock()
+        self.stop_thread = threading.Event()
+        self.read_thread = threading.Thread(target=self.read_buttons_loop)
         self.read_thread.start()
 
-        self.timer = self.create_timer(0.01, self.publish_button_states)  # Publish every 0.01 second; 100Hz
-        
-    def read_switch_button_loop(self):
-        button_pins = [5, 6, 13] # RPI GPIO pins
-        button_states = [False] * len(buttons)
+        # TODO: delete this timer
+        self.timer = self.create_timer(0.1, self.publish_button_states)  # Publish every 0.1 second; 10Hz
+
+        # Call reset command when the node is started
+        self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=2)) # Reset command
+        self.get_logger().info(f"Task {self.selected_task} and Reset command is called.")
+
+    def read_buttons_loop(self):
+        GPIO.setmode(GPIO.BCM)
+        for pin in self.button_states.keys():
+            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        new_button_states = self.button_states.copy()
 
         while not self.stop_thread.is_set(): 
             try:
                 with self.lock:
-                    button_states = [GPIO.input(pin) for pin in button_pins]
-                    self.button_states = button_states
+                    for pin in self.button_states.keys():
+                        new_button_states[pin] = not GPIO.input(pin)
+                    self.handle_button_states(new_button_states)
             except Exception as e:
                 self.get_logger().error(e)
             finally:
+                time.sleep(1)  # 1Hz for debounce
                 continue
-                #  print('cleanup')
         GPIO.cleanup()
+
+    def handle_button_states(self, new_button_states):
+        prev_button_states = self.button_states.copy()
+        self.button_states = new_button_states.copy()
+
+        if not prev_button_states[START_BUTTON_PIN] and new_button_states[START_BUTTON_PIN]:
+            self.get_logger().info(f"Task {self.selected_task} and Start command is called.")
+            response = self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=1))
+        if self.button_states[RESET_BUTTON_PIN] and not prev_button_states[RESET_BUTTON_PIN]:
+            self.get_logger().info(f"Task {self.selected_task} and Reset command is called.")
+            response = self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=2))
+
+        if not self.button_states[TASK1_BUTTON_PIN] and self.button_states[TASK3_BUTTON_PIN]:
+            self.get_logger().info("Task 3 selected")
+            self.selected_task = 3
+        if not self.button_states[TASK1_BUTTON_PIN] and not self.button_states[TASK3_BUTTON_PIN]:
+            self.get_logger().info("Task 2 selected")
+            self.selected_task = 2
+        if self.button_states[TASK1_BUTTON_PIN] and not self.button_states[TASK3_BUTTON_PIN]:
+            self.get_logger().info("Task 1 selected")
+            self.selected_task = 1
+
+    def publish_button_states(self):
+        #  self.get_logger().info(f"Publishing button states: {self.button_states}")
+        pass
+
+    def upper_limb_command_callback(self, request, response):
+        self.get_logger().info(f"Received command: {request.command} for task: {request.task}")
+        self.get_logger().info(f"Response: {response.success}, {response.message}")
+        return response
 
 def main(args=None):
     rclpy.init(args=args)
