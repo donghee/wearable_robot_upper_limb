@@ -19,10 +19,10 @@ def generate_launch_description():
             parameters=[]
         ), 
         Node(
-            package='dynamixel_sdk_examples',
-            executable='read_write_node',
-            name='read_write_node',
+            package='wearable_robot_upper_limb',
+            executable='robot_command',
+            name='robot_command',
             output='screen',
             parameters=[]
-        ),
+        ), 
     ])
