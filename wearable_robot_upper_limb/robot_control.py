@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32, Int32
 from wearable_robot_upper_limb_msgs.srv import UpperLimbCommand
+from wearable_robot_upper_limb_msgs.msg import UpperLimbState
 from geometry_msgs.msg import Vector3
 import time
 from dynamixel_sdk import *
@@ -187,6 +188,9 @@ class UpperLimbNode(Node):
         
         # loop time
         self.DELTA_TIME = 0.0125  # 80Hz
+
+        # running status
+        self.is_running = True
         
         # Parameters
         self.declare_parameter('robot_weight', 200.0)  # g
@@ -211,18 +215,12 @@ class UpperLimbNode(Node):
         self.start = 0
         self.theta = 0.0
 
-        # thread 
-        self.is_running = True
-        
         # Initialize Dynamixel
         self.previous_velocity = 0.0
        
         # Publishers
-        self.angle_pub = self.create_publisher(Float32, 'elbow_angle', 10)
-        self.force_pub = self.create_publisher(Float32, 'loadcell_force', 10)
-        self.current_pub = self.create_publisher(Float32, 'motor_current', 10)
-        self.state_pub = self.create_publisher(Int32, 'device_state', 10)
-
+        self.upper_limb_state_pub = self.create_publisher(UpperLimbState, 'upper_limb_status', 10)
+        
         # Subscribers
         self.loadcell_value = None
         self.loadcell_sub = self.create_subscription(Float32, 'load_cell_weight', self.loadcell_callback, 10)
@@ -244,22 +242,16 @@ class UpperLimbNode(Node):
         self.get_logger().info("__del__ Port closed")
 
     def reset_motor_position(self):
-        # ping
-        self.dxl.ping()
+        self.dxl.ping() # ping to check if the motor is connected
 
-        # Disable Dynamixel Torque
-        self.dxl.disable_torque()
-
-        # Set operating mode
-        self.dxl.set_operating_mode(OP_CURRENT_BASED_POSITION)
-
-        # Enable Dynamixel Torque
-        self.dxl.enable_torque()
+        self.dxl.disable_torque() # Disable Dynamixel Torque
+        self.dxl.set_operating_mode(OP_CURRENT_BASED_POSITION) # Set operating mode to current-based position for repositioning
+        self.dxl.enable_torque() # Enable Dynamixel Torque
  
         self.dxl.write_control_table(ADDR_PROFILE_VELOCITY, 30)
         self.dxl.set_goal_position(180.0)
 
-        # Initialize motor position
+        # reposition motor to 180 degree
         current_position = self.dxl.get_present_position()
         while abs(current_position - 180.0) > DXL_MOVING_STATUS_THRESHOLD: # Wait until the 180 goal position is reached
             current_position = self.dxl.get_present_position()
@@ -268,15 +260,11 @@ class UpperLimbNode(Node):
         time.sleep(1.0)
         self.dxl.write_control_table(ADDR_PROFILE_VELOCITY, 60)
         time.sleep(2.0)
-        self.get_logger().info("motor reposition is complete")
+        self.get_logger().info("Motor reposition is complete")
 
-        # Timer for control loop (80Hz)
-        # Disable Dynamixel Torque
-        self.dxl.disable_torque()
-        # Set operating mode
-        self.dxl.set_operating_mode(OP_VELOCITY)
-        # Enable Dynamixel Torque
-        self.dxl.enable_torque()
+        self.dxl.disable_torque() # Disable Dynamixel Torque
+        self.dxl.set_operating_mode(OP_VELOCITY) # Set operating mode to velocity
+        self.dxl.enable_torque() # Enable Dynamixel Torque
 
     def stop(self):
         self.timer.cancel()
@@ -335,28 +323,20 @@ class UpperLimbNode(Node):
         return max(min(velocity, 70.0), -70.0)
         
     def publish_state(self, position, loadcell_value, current):
-        angle_msg = Float32()
-        angle_msg.data = float(position)
-        self.angle_pub.publish(angle_msg)
-        
-        force_msg = Float32()
-        force_msg.data = float(loadcell_value)
-        self.force_pub.publish(force_msg)
-        
-        current_msg = Float32()
-        current_msg.data = float(current)
-        self.current_pub.publish(current_msg)
-        
-        state_msg = Int32()
-        state_msg.data = self.flag
+        state = 'Flexion' if self.direction == 1 else 'Extension'
 
-        # Publish data
+        state_msg = UpperLimbState()
+        state_msg.state = state
+        state_msg.repeat = self.r
+        state_msg.weight = loadcell_value
+        state_msg.angle = position
+        state_msg.current = float(current)
+
         # State : Flexion , Repeat : 6 , Weight : 475.40g , Elbow Angle : 125.22° , Current : -304.0000mA
         # State : Extension , Repeat : 5 , Weight : -92.22g , Elbow Angle : 151.98° , Current : 46.0000mA
-        state = 'Flexion' if self.direction == 1 else 'Extension'
         self.get_logger().info(f'State : {state}, Repeat : {self.r}, Weight : {loadcell_value:.2f}g, Elbow Angle : {position:.2f}°, Current : {current:.4f}mA')
 
-        self.state_pub.publish(state_msg)
+        self.upper_limb_state_pub.publish(state_msg)
         
     def loadcell_callback(self, msg):
         self.loadcell_value = msg.data
