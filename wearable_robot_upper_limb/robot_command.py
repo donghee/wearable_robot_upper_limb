@@ -58,7 +58,7 @@ class UpperLimbCommanderNode(Node):
             except Exception as e:
                 self.get_logger().error(e)
             finally:
-                time.sleep(1)  # 1Hz for debounce
+                time.sleep(0.5)  # sleep 500ms for button debouncing
                 continue
         GPIO.cleanup()
 
