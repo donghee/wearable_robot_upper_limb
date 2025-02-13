@@ -21,6 +21,8 @@ ADDR_PRESENT_VELOCITY   = 128
 ADDR_PRESENT_POSITION   = 132
 ADDR_PROFILE_VELOCITY   = 112
 ADDR_OPERATING_MODE     = 11
+ADDR_MIN_POSITION_LIMIT = 48
+ADDR_MAX_POSITION_LIMIT = 52
 
 OP_CURRENT_BASED_POSITION = 5
 OP_VELOCITY = 1
@@ -30,18 +32,30 @@ PROTOCOL_VERSION            = 2.0
 
 # Default setting
 DXL_ID                      = 1                 # Dynamixel ID : 1
-BAUDRATE                    = 57600             # Dynamixel default baudrate : 57600, Dynamixel XH430 series
-#BAUDRATE                    = 2000000           # Dynamixel XH540 series
+BAUDRATE                    = 57600             # Dynamixel default baudrate : 57600, Dynamixel XH430-V350-R series
+#BAUDRATE                    = 2000000           # Dynamixel XH540-W270-R series
 DEVICENAME                  = '/dev/ttyUSB0'    # Check which port is being used on your controller
                                                 # ex) Windows: "COM1"   Linux: "/dev/ttyUSB0" Mac: "/dev/tty.usbserial-*"
 TORQUE_ENABLE               = 1                 # Value for enabling the torque
 TORQUE_DISABLE              = 0                 # Value for disabling the torque
-DXL_MINIMUM_POSITION_VALUE  = 0                 # Dynamixel will rotate between this value
-DXL_MAXIMUM_POSITION_VALUE  = 4095              # and this value (note that the Dynamixel would not move when the position value is out of movable range. Check e-manual about the range of the Dynamixel you use.)
-DXL_MINIMUM_VELOCITY_VALUE  = 0                 # Minimum velocity value
+
+# Protocol V2; XH430-V350-R, XM540-W270-R Range Information
+# https://emanual.robotis.com/docs/en/dxl/x/xh430-v350/
+# https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/
+DXL_MINIMUM_POSITION_VALUE  = -2147483648                 # Dynamixel will rotate between this value
+DXL_MAXIMUM_POSITION_VALUE  = 2147483647              # and this value (note that the Dynamixel would not move when the position value is out of movable range. Check e-manual about the range of the Dynamixel you use.)
+DXL_MINIMUM_VELOCITY_VALUE  = -1023                 # Minimum velocity value
 DXL_MAXIMUM_VELOCITY_VALUE  = 1023              # Maximum velocity value
+DXL_MINIMUM_CURRENT_VALUE   = -689                 # Minimum current value
+DXL_MAXIMUM_CURRENT_VALUE   = 689              # Maximum current value
 DXL_MOVING_STATUS_THRESHOLD = 10                # Dynamixel moving status threshold
 MAX_VALUE_4BYTES = 4294967295  # 2^32 - 1
+MAX_VALUE_2BYTES = 65535      # 2^16 - 1
+
+UNIT_DEGREE_VALUE = 0.088
+UNIT_RPM_VALUE = 0.229
+UNIT_MILLI_AMPERE_VALUE = 1.34 # xh430-v350
+#UNIT_MILLI_AMPERE_VALUE = 2.69 # xm540-w270 https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/#goal-current102
 
 class DynamixelController:
     def __init__(self, node_logger):
@@ -107,7 +121,7 @@ class DynamixelController:
         elif dxl_error != 0:
             self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
         else:
-            self.logger.info("Set operating mode")
+            self.logger.info(f"Set operating mode to {mode}")
        
     def set_baudrate(self, baudrate):
         dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_BAUDRATE, baudrate)
@@ -122,7 +136,8 @@ class DynamixelController:
             self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
         elif dxl_error != 0:
             self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
- 
+
+    # {GET_POSITION, PRESENT_POSITION, UNIT_DEGREE, -2147483647 , 2147483647, 0.088},
     def get_present_position(self):
         dxl_present_position, dxl_comm_result, dxl_error = self.packetHandler.read4ByteTxRx(self.portHandler, self.DXL_ID, ADDR_PRESENT_POSITION)
         if dxl_comm_result != COMM_SUCCESS:
@@ -133,7 +148,7 @@ class DynamixelController:
         if dxl_present_position > DXL_MAXIMUM_POSITION_VALUE:
             dxl_present_position = dxl_present_position - MAX_VALUE_4BYTES
 
-        return dxl_present_position * (360/4096)
+        return dxl_present_position * UNIT_DEGREE_VALUE # (360/4096) = 0.088 
 
     def get_present_velocity(self):
         dxl_present_velocity, dxl_comm_result, dxl_error = self.packetHandler.read4ByteTxRx(self.portHandler, self.DXL_ID, ADDR_PRESENT_VELOCITY)
@@ -145,12 +160,27 @@ class DynamixelController:
         if dxl_present_velocity > DXL_MAXIMUM_VELOCITY_VALUE:
             dxl_present_velocity = dxl_present_velocity - MAX_VALUE_4BYTES
 
-        return dxl_present_velocity
+        return dxl_present_velocity * UNIT_RPM_VALUE
 
+    def get_present_current(self):
+        current, dxl_comm_result, dxl_error = self.packetHandler.read2ByteTxRx(
+            self.portHandler, self.DXL_ID, ADDR_PRESENT_LOAD
+        )
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+        
+        if current > DXL_MAXIMUM_CURRENT_VALUE:
+            current = current - MAX_VALUE_2BYTES
+
+        return current * UNIT_MILLI_AMPERE_VALUE
+
+    # {SET_POSITION, GOAL_POSITION, UNIT_DEGREE, -1048575, 1048575, 0.088},
     def set_goal_position(self, position):
         dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx(
             self.portHandler, self.DXL_ID, ADDR_GOAL_POSITION, 
-            int(position * (4096/360))
+            int(position / UNIT_DEGREE_VALUE)
         )
         if dxl_comm_result != COMM_SUCCESS:
             self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
@@ -160,22 +190,34 @@ class DynamixelController:
     def set_goal_velocity(self, velocity):
         dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx(
             self.portHandler, self.DXL_ID, ADDR_GOAL_VELOCITY, 
-            int(velocity)
+            int(velocity / UNIT_RPM_VALUE)
         )
         if dxl_comm_result != COMM_SUCCESS:
             self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
         elif dxl_error != 0:
             self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
        
-    def get_present_current(self):
-        current, dxl_comm_result, dxl_error = self.packetHandler.read2ByteTxRx(
-            self.portHandler, self.DXL_ID, ADDR_PRESENT_LOAD
+    # TODO: Need to test or remove
+    def set_min_position_limit(self, position):
+        dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx(
+            self.portHandler, self.DXL_ID, ADDR_MIN_POSITION_LIMIT, 
+            int(position / UNIT_DEGREE_VALUE)
         )
         if dxl_comm_result != COMM_SUCCESS:
             self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
         elif dxl_error != 0:
             self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        return current
+
+    # TODO: Need to test or remove
+    def set_max_position_limit(self, position):
+        dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx(
+            self.portHandler, self.DXL_ID, ADDR_MAX_POSITION_LIMIT,
+            int(position / UNIT_DEGREE_VALUE)
+        )
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
 
     def close(self):
         self.disable_torque()
@@ -190,7 +232,8 @@ class UpperLimbNode(Node):
         self.DELTA_TIME = 0.0125  # 80Hz
 
         # running status
-        self.is_running = True
+        self.selected_task = 0
+        self.is_running = False
         
         # Parameters
         self.declare_parameter('robot_weight', 200.0)  # g
@@ -266,16 +309,28 @@ class UpperLimbNode(Node):
         self.dxl.set_operating_mode(OP_VELOCITY) # Set operating mode to velocity
         self.dxl.enable_torque() # Enable Dynamixel Torque
 
+    #  def start(self):
+    #      self.timer.reset()
+    #      self.timer.start()
+    #      self.dxl.enable_torque()
+    #      self.get_logger().info('Starting...')
+    
     def stop(self):
         self.timer.cancel()
         self.dxl.disable_torque()
         self.get_logger().info('Stopping...')
 
     def control_loop(self):
-        if not self.is_running or self.r > self.get_parameter('repeat').value:
-            self.get_logger().info(f'quitting: {self.r}')
+        if not self.is_running:
             self.dxl.set_goal_velocity(0)
-            self.stop()
+            self.dxl.disable_torque()
+            return
+
+        if self.r > self.get_parameter('repeat').value:
+            self.get_logger().info(f'Task {self.selected_task} completed successfully')
+            self.dxl.set_goal_velocity(0)
+            #  self.stop()
+            self.is_running = False
             return
 
         # Read sensors
@@ -305,10 +360,10 @@ class UpperLimbNode(Node):
             
         # Impedance control
         delta_velocity = current_velocity - self.previous_velocity
-        delta_velocity = max(min(delta_velocity, 20.0), -20.0)
+        #  delta_velocity = max(min(delta_velocity, 20.0), -20.0)
         acceleration = delta_velocity / self.DELTA_TIME
-        #  acceleration = 0
-        #  self.get_logger().info(f'acceleration: {acceleration}')
+        acceleration = max(min(acceleration, 500.0), -500.0) # TODO: Need to check the limit value
+        self.get_logger().info(f'acceleration: {acceleration}, velocity: {current_velocity}, delta_velocity: {delta_velocity}')
         self.previous_velocity = current_velocity
 
         delta_force = loadcell_value + 50 - 300
@@ -318,8 +373,8 @@ class UpperLimbNode(Node):
 
         self.publish_state(current_position, loadcell_value, current)
         
-    def calculate_velocity(self, position, acceleration, force, theta):
-        velocity = self.a * self.direction + (force - self.m * acceleration - self.k * (position - theta)) / self.c
+    def calculate_velocity(self, position, acceleration, delta_force, theta):
+        velocity = self.a * self.direction + (delta_force - self.m * acceleration - self.k * (position - theta)) / self.c
         return max(min(velocity, 70.0), -70.0)
         
     def publish_state(self, position, loadcell_value, current):
@@ -347,7 +402,49 @@ class UpperLimbNode(Node):
         return 0.0  # TODO need error handling
 
     def handle_command(self, request, response):
-        print(f"Received command: Task {request.task} and {request.command}")
+        commands = {UpperLimbCommand.Request.COMMAND_START_STOP: 'COMMAND_START_STOP',
+                    UpperLimbCommand.Request.COMMAND_RESET: 'COMMAND_RESET'}
+
+        if request.command > UpperLimbCommand.Request.COMMAND_RESET:
+            self.get_logger().error(f"Invalid command: {request.command}")
+            response.success = False
+            response.message = "Invalid command"
+            return response
+        self.get_logger().info(f"Received command: Task {request.task}, {commands[request.command]}")
+
+        self.selected_task = request.task
+
+        # Set control parameters by task
+        if request.task == UpperLimbCommand.Request.TASK_1:
+            self.m = 0.5
+            self.c = 10
+        elif request.task == UpperLimbCommand.Request.TASK_2:
+            self.m = 0.1
+            self.c = 50
+        elif request.task == UpperLimbCommand.Request.TASK_3:
+            self.c = 10000
+
+        # Set control running status and reset variables
+        if request.command == UpperLimbCommand.Request.COMMAND_START_STOP:
+            self.is_running = not self.is_running
+            if self.is_running:
+                self.dxl.enable_torque()
+            #  time.sleep(2.0)
+            #  self.is_running = True
+        #  elif request.command == UpperLimbCommand.Request.COMMAND_STOP:
+            #  self.is_running = False
+        elif request.command == UpperLimbCommand.Request.COMMAND_RESET:
+            if self.is_running:
+                self.is_running = False
+                time.sleep(2.0)
+            self.current_time = 0.0
+            self.direction = -1
+            self.flag = 2
+            self.r = -1
+            self.start = 0
+            self.theta = 0.0
+            self.reset_motor_position()
+        
         response.success = True
         response.message = "Command received"
         return response
@@ -396,6 +493,9 @@ def main(args=None):
 
     disable_torque() # One more disable torque before exiting
     upper_limb_node.get_logger().info("Torque disabled!")
+
+    upper_limb_node.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

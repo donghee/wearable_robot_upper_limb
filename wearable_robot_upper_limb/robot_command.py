@@ -40,7 +40,7 @@ class UpperLimbCommanderNode(Node):
         self.timer = self.create_timer(0.1, self.publish_button_states)  # Publish every 0.1 second; 10Hz
 
         # Call reset command when the node is started
-        self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=2)) # Reset command
+        self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=UpperLimbCommand.Request.COMMAND_RESET)) # Reset command
         self.get_logger().info(f"Task {self.selected_task} and Reset command is called.")
 
     def read_buttons_loop(self):
@@ -68,20 +68,20 @@ class UpperLimbCommanderNode(Node):
 
         if not prev_button_states[START_BUTTON_PIN] and new_button_states[START_BUTTON_PIN]:
             self.get_logger().info(f"Task {self.selected_task} and Start command is called.")
-            response = self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=1))
+            response = self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=UpperLimbCommand.Request.COMMAND_START_STOP))
         if self.button_states[RESET_BUTTON_PIN] and not prev_button_states[RESET_BUTTON_PIN]:
             self.get_logger().info(f"Task {self.selected_task} and Reset command is called.")
-            response = self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=2))
+            response = self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=UpperLimbCommand.Request.COMMAND_RESET))
 
         if not self.button_states[TASK1_BUTTON_PIN] and self.button_states[TASK3_BUTTON_PIN]:
             #  self.get_logger().info("Task 3 selected")
-            self.selected_task = 3
+            self.selected_task = UpperLimbCommand.Request.TASK_3
         if not self.button_states[TASK1_BUTTON_PIN] and not self.button_states[TASK3_BUTTON_PIN]:
             #  self.get_logger().info("Task 2 selected")
-            self.selected_task = 2
+            self.selected_task = UpperLimbCommand.Request.TASK_2
         if self.button_states[TASK1_BUTTON_PIN] and not self.button_states[TASK3_BUTTON_PIN]:
             #  self.get_logger().info("Task 1 selected")
-            self.selected_task = 1
+            self.selected_task = UpperLimbCommand.Request.TASK_1
 
     def publish_button_states(self):
         #  self.get_logger().info(f"Publishing button states: {self.button_states}")
