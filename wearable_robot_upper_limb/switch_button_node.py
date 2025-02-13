@@ -1,7 +1,6 @@
 import rclpy
 from rclpy.node import Node
 # import gpio status message 
-from std_msgs.msg import BoolMultiArray
 
 # you need to install rpi-lgpio in raspberry pi 5
 #sudo apt remove python3-rpi.gpio 
@@ -11,9 +10,9 @@ import RPi.GPIO as GPIO
 import time
 import threading
 
-class SwitchButtonNode(Node):
+class UpperLimbCommanderNode(Node):
     def __init__(self):
-        super().__init__('switch_button_node')
+        super().__init__('upper_limb_commander_node')
 
         self.button_states = [False] * 3
         self.lock = threading.Lock()
@@ -24,8 +23,6 @@ class SwitchButtonNode(Node):
         self.read_thread = threading.Thread(target=self.read_switch_button_loop)
         self.read_thread.start()
 
-        # publish multiple button states as one message
-        self.button_states_pub = self.create_publisher(BoolMultiArray, 'button_states', 10)
         self.timer = self.create_timer(0.01, self.publish_button_states)  # Publish every 0.01 second; 100Hz
         
     def read_switch_button_loop(self):
@@ -44,21 +41,15 @@ class SwitchButtonNode(Node):
                 #  print('cleanup')
         GPIO.cleanup()
 
-    def publish_button_states(self):
-        msg = BoolMultiArray()
-        msg.data = self.button_states
-        self.button_states_pub.publish(msg)
-        self.get_logger().info(f'Publishing button states: {self.button_states}')
-
 def main(args=None):
     rclpy.init(args=args)
-    button_node = SwitchButtonNode()
+    cmd_node = UpperLimbCommanderNode()
     try:
-        rclpy.spin(button_node)
+        rclpy.spin(cmd_node)
     except KeyboardInterrupt:
-        button_node.stop_thread.set()
-        button_node.read_thread.join()
-        button_node.destroy_node()
+        cmd_node.stop_thread.set()
+        cmd_node.read_thread.join()
+        cmd_node.destroy_node()
         rclpy.shutdown()
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32, Int32
+from wearable_robot_upper_limb_msgs.srv import UpperLimbCommand
 from geometry_msgs.msg import Vector3
 import time
 from dynamixel_sdk import *
@@ -123,6 +124,9 @@ class UpperLimbNode(Node):
         # Subscribers
         self.loadcell_value = None
         self.loadcell_sub = self.create_subscription(Float32, 'load_cell_weight', self.loadcell_callback, 10)
+
+        # Services
+        self.command_service = self.create_service(UpperLimbCommand, 'upper_limb_command', self.handle_command)
         
         # Initialize position
         self.write_control_table_(ADDR_PROFILE_VELOCITY, 30)
@@ -360,6 +364,11 @@ class UpperLimbNode(Node):
         if self.loadcell_value is not None:
             return self.loadcell_value
         return 0.0  # TODO need error handling
+
+    def handle_command(self, request, response):
+        print(f"Received command: {request.mode} {request.button[0]} {request.button[1]}")
+        response.success = True
+        return response
 
 def disable_torque():
     portHandler = PortHandler(DEVICENAME)

@@ -63,3 +63,29 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 ros2 run wearable_robot_upper_limb robot_control
 ```
+
+
+```sh
+source /opt/ros/humble/setup.bash; colcon build ;source ./install/setup.bash
+```
+
+---
+
+Development Journal
+msg package 
+
+cd ~/tmp/dynamixel_ws/src
+ros2 pkg create --build-type ament_cmake wearable_robot_upper_limb_msgs
+
+srv/UpperLimbCommand.srv
+
+```
+# Request
+bool mode      # Mode switch (true: on, false: off)
+bool[2] button     # Start button
+
+# Response
+bool success     # Command execution result
+string message   # Status or error message
+```
+
