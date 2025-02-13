@@ -25,7 +25,7 @@ setup(
         'console_scripts': [
             'robot_control = wearable_robot_upper_limb.robot_control:main',
             'robot_command = wearable_robot_upper_limb.robot_command:main',
-            'load_cell = wearable_robot_upper_limb.load_cell_node:main',
+            'load_cell = wearable_robot_upper_limb.load_cell:main',
             'dynamixel_pub = wearable_robot_upper_limb.dynamixel_pub:main',
         ],
     },
