@@ -32,8 +32,8 @@ PROTOCOL_VERSION            = 2.0
 
 # Default setting
 DXL_ID                      = 1                 # Dynamixel ID : 1
-BAUDRATE                    = 57600             # Dynamixel default baudrate : 57600, Dynamixel XH430-V350-R series
-#BAUDRATE                    = 2000000           # Dynamixel XH540-W270-R series
+#  BAUDRATE                    = 57600             # Dynamixel default baudrate : 57600, Dynamixel XH430-V350-R series
+BAUDRATE                    = 2000000           # Dynamixel XH540-W270-R series
 DEVICENAME                  = '/dev/ttyUSB0'    # Check which port is being used on your controller
                                                 # ex) Windows: "COM1"   Linux: "/dev/ttyUSB0" Mac: "/dev/tty.usbserial-*"
 TORQUE_ENABLE               = 1                 # Value for enabling the torque
@@ -54,8 +54,8 @@ MAX_VALUE_2BYTES = 65535      # 2^16 - 1
 
 UNIT_DEGREE_VALUE = 0.088
 UNIT_RPM_VALUE = 0.229
-UNIT_MILLI_AMPERE_VALUE = 1.34 # xh430-v350
-#UNIT_MILLI_AMPERE_VALUE = 2.69 # xm540-w270 https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/#goal-current102
+#  UNIT_MILLI_AMPERE_VALUE = 1.34 # XH430-V350-R
+UNIT_MILLI_AMPERE_VALUE = 2.69 # XH540-w270-R https://emanual.robotis.com/docs/en/dxl/x/xm540-w270/#goal-current102
 
 class DynamixelController:
     def __init__(self, node_logger):
