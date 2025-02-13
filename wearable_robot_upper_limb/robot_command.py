@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-# import gpio status message 
 
 # you need to install rpi-lgpio in raspberry pi 5
 #sudo apt remove python3-rpi.gpio 
@@ -75,13 +74,13 @@ class UpperLimbCommanderNode(Node):
             response = self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=2))
 
         if not self.button_states[TASK1_BUTTON_PIN] and self.button_states[TASK3_BUTTON_PIN]:
-            self.get_logger().info("Task 3 selected")
+            #  self.get_logger().info("Task 3 selected")
             self.selected_task = 3
         if not self.button_states[TASK1_BUTTON_PIN] and not self.button_states[TASK3_BUTTON_PIN]:
-            self.get_logger().info("Task 2 selected")
+            #  self.get_logger().info("Task 2 selected")
             self.selected_task = 2
         if self.button_states[TASK1_BUTTON_PIN] and not self.button_states[TASK3_BUTTON_PIN]:
-            self.get_logger().info("Task 1 selected")
+            #  self.get_logger().info("Task 1 selected")
             self.selected_task = 1
 
     def publish_button_states(self):

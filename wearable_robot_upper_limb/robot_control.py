@@ -29,7 +29,8 @@ PROTOCOL_VERSION            = 2.0
 
 # Default setting
 DXL_ID                      = 1                 # Dynamixel ID : 1
-BAUDRATE                    = 57600             # Dynamixel default baudrate : 57600
+BAUDRATE                    = 57600             # Dynamixel default baudrate : 57600, Dynamixel XH430 series
+#BAUDRATE                    = 2000000           # Dynamixel XH540 series
 DEVICENAME                  = '/dev/ttyUSB0'    # Check which port is being used on your controller
                                                 # ex) Windows: "COM1"   Linux: "/dev/ttyUSB0" Mac: "/dev/tty.usbserial-*"
 TORQUE_ENABLE               = 1                 # Value for enabling the torque
@@ -41,18 +42,150 @@ DXL_MAXIMUM_VELOCITY_VALUE  = 1023              # Maximum velocity value
 DXL_MOVING_STATUS_THRESHOLD = 10                # Dynamixel moving status threshold
 MAX_VALUE_4BYTES = 4294967295  # 2^32 - 1
 
+class DynamixelController:
+    def __init__(self, node_logger):
+        self.logger = node_logger
+        
+        # Constants
+        self.DXL_ID = DXL_ID
+        self.PROTOCOL_VERSION = PROTOCOL_VERSION
+        self.BAUDRATE = BAUDRATE
+        self.DEVICENAME = DEVICENAME
+
+        # Initialize Dynamixel
+        self.portHandler = PortHandler(self.DEVICENAME)
+        self.packetHandler = PacketHandler(self.PROTOCOL_VERSION)
+        
+        self._initialize_connection()
+
+    def _initialize_connection(self):
+        if self.portHandler.openPort():
+            self.logger.info("Succeeded to open port")
+        else:
+            self.logger.error("Failed to open port")
+            return False
+            
+        if self.portHandler.setBaudRate(self.BAUDRATE):
+            self.logger.info("Succeeded to change baudrate")
+        else:
+            self.logger.error("Failed to change baudrate")
+            return False
+        return True
+
+    def ping(self):
+        dxl_model_number, dxl_comm_result, dxl_error = self.packetHandler.ping(self.portHandler, self.DXL_ID)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+        else:
+            self.logger.info("[ID:%03d] ping Succeeded. Dynamixel model number : %d" % (self.DXL_ID, dxl_model_number))
+
+    def disable_torque(self):
+        dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+        else:
+            self.logger.info("Disabled torque")
+
+    def enable_torque(self):
+        dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_TORQUE_ENABLE, TORQUE_ENABLE)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+        else:
+            self.logger.info("Enabled torque")
+        
+    def set_operating_mode(self, mode):
+        dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_OPERATING_MODE, mode)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+        else:
+            self.logger.info("Set operating mode")
+       
+    def set_baudrate(self, baudrate):
+        dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_BAUDRATE, baudrate)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+
+    def write_control_table(self, addr=ADDR_PROFILE_VELOCITY, value=30):
+        dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx(self.portHandler, self.DXL_ID, addr, value)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+ 
+    def get_present_position(self):
+        dxl_present_position, dxl_comm_result, dxl_error = self.packetHandler.read4ByteTxRx(self.portHandler, self.DXL_ID, ADDR_PRESENT_POSITION)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+
+        if dxl_present_position > DXL_MAXIMUM_POSITION_VALUE:
+            dxl_present_position = dxl_present_position - MAX_VALUE_4BYTES
+
+        return dxl_present_position * (360/4096)
+
+    def get_present_velocity(self):
+        dxl_present_velocity, dxl_comm_result, dxl_error = self.packetHandler.read4ByteTxRx(self.portHandler, self.DXL_ID, ADDR_PRESENT_VELOCITY)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+
+        if dxl_present_velocity > DXL_MAXIMUM_VELOCITY_VALUE:
+            dxl_present_velocity = dxl_present_velocity - MAX_VALUE_4BYTES
+
+        return dxl_present_velocity
+
+    def set_goal_position(self, position):
+        dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx(
+            self.portHandler, self.DXL_ID, ADDR_GOAL_POSITION, 
+            int(position * (4096/360))
+        )
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+
+    def set_goal_velocity(self, velocity):
+        dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx(
+            self.portHandler, self.DXL_ID, ADDR_GOAL_VELOCITY, 
+            int(velocity)
+        )
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+       
+    def get_present_current(self):
+        current, dxl_comm_result, dxl_error = self.packetHandler.read2ByteTxRx(
+            self.portHandler, self.DXL_ID, ADDR_PRESENT_LOAD
+        )
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+        return current
+
+    def close(self):
+        self.disable_torque()
+        self.portHandler.closePort()
+        self.logger.info("Port closed")
 
 class UpperLimbNode(Node):
     def __init__(self):
         super().__init__('wearable_robot_upper_limb_controller')
         
-        # Constants
-        self.DXL_ID = DXL_ID
-        self.PROTOCOL_VERSION = PROTOCOL_VERSION
-        self.BAUDRATE = 57600 # Dynamixel XH430 series
-        #self.BAUDRATE = 2000000 # Dynamixel XH540 series
-        self.DEVICENAME = DEVICENAME
-
+        # loop time
         self.DELTA_TIME = 0.0125  # 80Hz
         
         # Parameters
@@ -83,38 +216,7 @@ class UpperLimbNode(Node):
         
         # Initialize Dynamixel
         self.previous_velocity = 0.0
-
-        self.portHandler = PortHandler(self.DEVICENAME)
-        self.packetHandler = PacketHandler(self.PROTOCOL_VERSION)
-        
-        if self.portHandler.openPort():
-            self.get_logger().info("Succeeded to open port")
-        else:
-            self.get_logger().error("Failed to open port")
-            return
-            
-        if self.portHandler.setBaudRate(self.BAUDRATE):
-            self.get_logger().info("Succeeded to change baudrate")
-        else:
-            self.get_logger().error("Failed to change baudrate")
-            return
-
-        # set baudrate
-        #  self.set_baudrate_(9)  # 2000000
-        #  self.set_baudrate_(34) # 57600
-
-        # ping
-        self.ping_()
-
-        # Disable Dynamixel Torque
-        self.disable_torque_()
-
-        # Set operating mode
-        self.set_operating_mode_(OP_CURRENT_BASED_POSITION)
-
-        # Enable Dynamixel Torque
-        self.enable_torque_()
-        
+       
         # Publishers
         self.angle_pub = self.create_publisher(Float32, 'elbow_angle', 10)
         self.force_pub = self.create_publisher(Float32, 'loadcell_force', 10)
@@ -128,55 +230,74 @@ class UpperLimbNode(Node):
         # Services
         self.command_service = self.create_service(UpperLimbCommand, 'upper_limb_command', self.handle_command)
         
-        # Initialize position
-        self.write_control_table_(ADDR_PROFILE_VELOCITY, 30)
-        self.set_goal_position(180.0)
-
-        current_position = self.get_present_position()
-        while abs(current_position - 180.0) > DXL_MOVING_STATUS_THRESHOLD: # Wait until the 180 goal position is reached
-            current_position = self.get_present_position()
-            time.sleep(0.1)
-
-        time.sleep(1.0)
-        self.write_control_table_(ADDR_PROFILE_VELOCITY, 60)
-        time.sleep(2.0)
-        self.get_logger().info("Initialization complete")
-
         # Timer for control loop (80Hz)
-        # Disable Dynamixel Torque
-        self.disable_torque_()
-        # Set operating mode
-        self.set_operating_mode_(OP_VELOCITY)
-        # Enable Dynamixel Torque
-        self.enable_torque_()
-
         self.timer = self.create_timer(self.DELTA_TIME, self.control_loop)
+
+        # Motor controller
+        self.dxl = DynamixelController(self.get_logger())
+        self.reset_motor_position()
+
 
     def __del__(self):
         self.stop()
-        self.portHandler.closePort()
+        self.dxl.close()
         self.get_logger().info("__del__ Port closed")
+
+    def reset_motor_position(self):
+        # ping
+        self.dxl.ping()
+
+        # Disable Dynamixel Torque
+        self.dxl.disable_torque()
+
+        # Set operating mode
+        self.dxl.set_operating_mode(OP_CURRENT_BASED_POSITION)
+
+        # Enable Dynamixel Torque
+        self.dxl.enable_torque()
+ 
+        self.dxl.write_control_table(ADDR_PROFILE_VELOCITY, 30)
+        self.dxl.set_goal_position(180.0)
+
+        # Initialize motor position
+        current_position = self.dxl.get_present_position()
+        while abs(current_position - 180.0) > DXL_MOVING_STATUS_THRESHOLD: # Wait until the 180 goal position is reached
+            current_position = self.dxl.get_present_position()
+            time.sleep(0.1)
+
+        time.sleep(1.0)
+        self.dxl.write_control_table(ADDR_PROFILE_VELOCITY, 60)
+        time.sleep(2.0)
+        self.get_logger().info("motor reposition is complete")
+
+        # Timer for control loop (80Hz)
+        # Disable Dynamixel Torque
+        self.dxl.disable_torque()
+        # Set operating mode
+        self.dxl.set_operating_mode(OP_VELOCITY)
+        # Enable Dynamixel Torque
+        self.dxl.enable_torque()
 
     def stop(self):
         self.timer.cancel()
-        self.disable_torque_()
+        self.dxl.disable_torque()
         self.get_logger().info('Stopping...')
 
     def control_loop(self):
-        if not self.is_running or self.r >= self.get_parameter('repeat').value:
+        if not self.is_running or self.r > self.get_parameter('repeat').value:
             self.get_logger().info(f'quitting: {self.r}')
-            self.set_goal_velocity(0)
+            self.dxl.set_goal_velocity(0)
             self.stop()
             return
 
         # Read sensors
-        current_position = self.get_present_position()
-        current_velocity = self.get_present_velocity() * 6  # 6 From KNU's firmware
+        current_position = self.dxl.get_present_position()
+        current_velocity = self.dxl.get_present_velocity() * 6  # 6 From KNU's firmware
         loadcell_value = self.read_loadcell()  # Implement according to your HX711 interface
-        current = self.get_present_current()
+        current = self.dxl.get_present_current()
 
-        self.get_logger().info(f'direction: {self.direction}, velocity: {current_velocity}, positiion: {current_position}, theta: {self.theta}')
-        
+        #  self.get_logger().info(f'direction: {self.direction}, velocity: {current_velocity}, positiion: {current_position}, theta: {self.theta}, current: {current}')
+       
         # Calculate control
         self.current_time += 12.5
         
@@ -199,28 +320,27 @@ class UpperLimbNode(Node):
         delta_velocity = max(min(delta_velocity, 20.0), -20.0)
         acceleration = delta_velocity / self.DELTA_TIME
         #  acceleration = 0
-        self.get_logger().info(f'acceleration: {acceleration}')
+        #  self.get_logger().info(f'acceleration: {acceleration}')
         self.previous_velocity = current_velocity
 
         delta_force = loadcell_value + 50 - 300
         velocityT = self.calculate_velocity(current_position, acceleration, delta_force, self.theta)
-        self.set_goal_velocity(velocityT / 6) # 6 From KNU's firmware
-        #  self.set_goal_velocity(velocityT)
+        self.dxl.set_goal_velocity(velocityT / 6) # 6 From KNU's firmware
+        #  self.dxl.set_goal_velocity(velocityT)
 
-        # Publish data
         self.publish_state(current_position, loadcell_value, current)
         
     def calculate_velocity(self, position, acceleration, force, theta):
         velocity = self.a * self.direction + (force - self.m * acceleration - self.k * (position - theta)) / self.c
         return max(min(velocity, 70.0), -70.0)
         
-    def publish_state(self, position, force, current):
+    def publish_state(self, position, loadcell_value, current):
         angle_msg = Float32()
         angle_msg.data = float(position)
         self.angle_pub.publish(angle_msg)
         
         force_msg = Float32()
-        force_msg.data = float(force)
+        force_msg.data = float(loadcell_value)
         self.force_pub.publish(force_msg)
         
         current_msg = Float32()
@@ -229,133 +349,14 @@ class UpperLimbNode(Node):
         
         state_msg = Int32()
         state_msg.data = self.flag
+
+        # Publish data
+        # State : Flexion , Repeat : 6 , Weight : 475.40g , Elbow Angle : 125.22° , Current : -304.0000mA
+        # State : Extension , Repeat : 5 , Weight : -92.22g , Elbow Angle : 151.98° , Current : 46.0000mA
+        state = 'Flexion' if self.direction == 1 else 'Extension'
+        self.get_logger().info(f'State : {state}, Repeat : {self.r}, Weight : {loadcell_value:.2f}g, Elbow Angle : {position:.2f}°, Current : {current:.4f}mA')
+
         self.state_pub.publish(state_msg)
-        
-    # Dynamixel helper functions
-    def ping_(self):
-        # Get Dynamixel model number
-        dxl_model_number, dxl_comm_result, dxl_error = self.packetHandler.ping(self.portHandler, self.DXL_ID)
-        if dxl_comm_result != COMM_SUCCESS:
-            #  print("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            #  print("%s" % self.packetHandler.getRxPacketError(dxl_error))
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        else:
-            #  print("[ID:%03d] ping Succeeded. Dynamixel model number : %d" % (self.DXL_ID, dxl_model_number))
-            self.get_logger().info("[ID:%03d] ping Succeeded. Dynamixel model number : %d" % (self.DXL_ID, dxl_model_number))
-
-    def disable_torque_(self):
-        # Disable Dynamixel Torque
-        dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
-        if dxl_comm_result != COMM_SUCCESS:
-            #  print("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            #  print("%s" % self.packetHandler.getRxPacketError(dxl_error))
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        else:
-            #  print("Dynamixel has been successfully connected")
-            self.get_logger().info("Disabled torque")
-
-    def enable_torque_(self):
-        # Enable Dynamixel Torque
-        dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_TORQUE_ENABLE, TORQUE_ENABLE)
-        if dxl_comm_result != COMM_SUCCESS:
-            #  print("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            #  print("%s" % self.packetHandler.getRxPacketError(dxl_error))
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        else:
-            self.get_logger().info("Enabled torque")
-        
-    def set_operating_mode_(self, mode):
-        dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_OPERATING_MODE, mode)
-        if dxl_comm_result != COMM_SUCCESS:
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        else:
-            self.get_logger().info("Set operatiing mode")
-       
-    def set_baudrate_(self, baudrate):
-        dxl_comm_result, dxl_error = self.packetHandler.write1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_BAUDRATE, baudrate)
-        if dxl_comm_result != COMM_SUCCESS:
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-
-    def write_control_table_(self, addr=ADDR_PROFILE_VELOCITY, value=30):
-        # Set profile velocity
-        dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx(self.portHandler, self.DXL_ID, addr, value)
-        if dxl_comm_result != COMM_SUCCESS:
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
- 
-    def get_present_position(self):
-        dxl_present_position, dxl_comm_result, dxl_error = self.packetHandler.read4ByteTxRx(self.portHandler, self.DXL_ID, ADDR_PRESENT_POSITION)
-        #  self.get_logger().info("Present Position of ID %s = %s" % (self.DXL_ID, dxl_present_position))
-        if dxl_comm_result != COMM_SUCCESS:
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        #  else:
-        #      self.get_logger().info("Get present position")
-
-        if dxl_present_position > DXL_MAXIMUM_POSITION_VALUE:
-            dxl_present_position = dxl_present_position - MAX_VALUE_4BYTES # 4294967295
-
-        return dxl_present_position * (360/4096)
-
-    def get_present_velocity(self):
-        dxl_present_velocity, dxl_comm_result, dxl_error = self.packetHandler.read4ByteTxRx(self.portHandler, self.DXL_ID, ADDR_PRESENT_VELOCITY)
-        if dxl_comm_result != COMM_SUCCESS:
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        #  else:
-        #      self.get_logger().info("Get present velocity")
-
-        if dxl_present_velocity > DXL_MAXIMUM_VELOCITY_VALUE:
-            dxl_present_velocity = dxl_present_velocity - MAX_VALUE_4BYTES # 4294967295 
-
-        return dxl_present_velocity
-
-
-    def set_goal_position(self, position):
-        dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx( self.portHandler, self.DXL_ID, ADDR_GOAL_POSITION, int(position * (4096/360)))
-        if dxl_comm_result != COMM_SUCCESS:
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        #  else:
-        #      self.get_logger().info("Set goal position")
-
-    def set_goal_velocity(self, velocity):
-        dxl_comm_result, dxl_error = self.packetHandler.write4ByteTxRx(
-            self.portHandler, self.DXL_ID, ADDR_GOAL_VELOCITY, 
-            int(velocity)
-            #  int(velocity * (6 * 0.229))
-        )
-        if dxl_comm_result != COMM_SUCCESS:
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        #  else:
-        #      self.get_logger().info("Set goal velocity")
-       
-    def get_present_current(self):
-        current, dxl_comm_result, dxl_error = self.packetHandler.read2ByteTxRx( self.portHandler, self.DXL_ID, ADDR_PRESENT_LOAD)
-        #  self.get_logger().info("Present Current of ID %s = %s" % (self.DXL_ID, current))
-        if dxl_comm_result != COMM_SUCCESS:
-            self.get_logger().info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
-        elif dxl_error != 0:
-            self.get_logger().info("%s" % self.packetHandler.getRxPacketError(dxl_error))
-        #  else:
-        #      self.get_logger().info("Get present current")
-        return current
         
     def loadcell_callback(self, msg):
         self.loadcell_value = msg.data
@@ -379,13 +380,13 @@ def disable_torque():
         print("Succeeded to open port")
     else:
         print("Failed to open port")
-        return
+        return False
         
     if portHandler.setBaudRate(BAUDRATE):
         print("Succeeded to change baudrate")
     else:
         print("Failed to change baudrate")
-        return
+        return False
 
     dxl_comm_result, dxl_error = packetHandler.write1ByteTxRx(portHandler, DXL_ID, ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
     if dxl_comm_result != COMM_SUCCESS:
@@ -394,8 +395,9 @@ def disable_torque():
         print("%s" % packetHandler.getRxPacketError(dxl_error))
     else:
         print("Disabled torque")
-
     portHandler.closePort()
+
+    return dxl_error == 0
         
 def main(args=None):
     rclpy.init(args=args)
@@ -407,9 +409,13 @@ def main(args=None):
         upper_limb_node.get_logger().error('Keyboard Interrupt received')
     finally:
         upper_limb_node.get_logger().error('Finally')
-        upper_limb_node.portHandler.closePort()
+
+        while not disable_torque(): # Retry until torque is disabled
+            upper_limb_node.get_logger().error("Failed to disable torque, retrying...")
         rclpy.try_shutdown()
-        disable_torque()
+
+    disable_torque() # One more disable torque before exiting
+    upper_limb_node.get_logger().info("Torque disabled!")
 
 if __name__ == '__main__':
     main()

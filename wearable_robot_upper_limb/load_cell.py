@@ -76,7 +76,7 @@ class LoadCellNode(Node):
         msg = Float32()
         msg.data = float(self.current_weight)
         self.publisher_.publish(msg)
-        self.get_logger().info(f'Publishing weight: {self.current_weight:.2f}g')
+        #  self.get_logger().info(f'Publishing weight: {self.current_weight:.2f}g')
 
 def main(args=None):
     rclpy.init(args=args)
