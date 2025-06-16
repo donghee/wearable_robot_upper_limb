@@ -27,6 +27,7 @@ setup(
             'robot_command = wearable_robot_upper_limb.robot_command:main',
             'load_cell = wearable_robot_upper_limb.load_cell:main',
             'dynamixel_pub = wearable_robot_upper_limb.dynamixel_pub:main',
+            'robot_state = wearable_robot_upper_limb.robot_state:main',
         ],
     },
 )

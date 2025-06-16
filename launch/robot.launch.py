@@ -13,6 +13,14 @@ def generate_launch_description():
         ), 
         Node(
             package='wearable_robot_upper_limb',
+            executable='robot_state',
+            name='robot_state',
+            output='screen',
+            parameters=[]
+        ),
+
+        Node(
+            package='wearable_robot_upper_limb',
             executable='load_cell',
             name='load_cell',
             output='screen',
@@ -24,5 +32,5 @@ def generate_launch_description():
             name='robot_command',
             output='screen',
             parameters=[]
-        ), 
+        ),
     ])
