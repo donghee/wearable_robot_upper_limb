@@ -234,13 +234,13 @@ class UpperLimbNode(Node):
         # running status
         self.selected_task = 0
         self.is_running = False
+        self.is_sending_upper_limb_state = False
         
         # Parameters
         self.declare_parameter('robot_weight', 200.0)  # g
         self.declare_parameter('l1', 0.18)  # m
         self.declare_parameter('l2', 0.30)  # m
-        #  self.declare_parameter('repeat', 40)
-        self.declare_parameter('repeat', 5)
+        self.declare_parameter('repeat', 39) # start from zero, total 20 flexion and extention
         self.declare_parameter('delay_time', 1000)  # ms
         
         # Control parameters
@@ -292,11 +292,11 @@ class UpperLimbNode(Node):
         self.dxl.enable_torque() # Enable Dynamixel Torque
  
         self.dxl.write_control_table(ADDR_PROFILE_VELOCITY, 30)
-        self.dxl.set_goal_position(180.0)
+        self.dxl.set_goal_position(170.0)
 
-        # reposition motor to 180 degree
+        # reposition motor to 170 degree
         current_position = self.dxl.get_present_position()
-        while abs(current_position - 180.0) > DXL_MOVING_STATUS_THRESHOLD: # Wait until the 180 goal position is reached
+        while abs(current_position - 170.0) > DXL_MOVING_STATUS_THRESHOLD: # Wait until the 170 goal position is reached
             current_position = self.dxl.get_present_position()
             time.sleep(0.1)
 
@@ -305,9 +305,9 @@ class UpperLimbNode(Node):
         time.sleep(2.0)
         self.get_logger().info("Motor reposition is complete")
 
-        self.dxl.disable_torque() # Disable Dynamixel Torque
-        self.dxl.set_operating_mode(OP_VELOCITY) # Set operating mode to velocity
-        self.dxl.enable_torque() # Enable Dynamixel Torque
+        #self.dxl.disable_torque() # Disable Dynamixel Torque
+        #self.dxl.set_operating_mode(OP_VELOCITY) # Set operating mode to velocity
+        #self.dxl.enable_torque() # Enable Dynamixel Torque
 
     #  def start(self):
     #      self.timer.reset()
@@ -323,7 +323,12 @@ class UpperLimbNode(Node):
     def control_loop(self):
         if not self.is_running:
             self.dxl.set_goal_velocity(0)
-            self.dxl.disable_torque()
+            #self.dxl.disable_torque()
+            if self.is_sending_upper_limb_state:
+                current_position = self.dxl.get_present_position()
+                loadcell_value = self.read_loadcell()  # Implement according to your HX711 interface
+                current = self.dxl.get_present_current()
+                self.publish_state(current_position, loadcell_value, current)
             return
 
         if self.r > self.get_parameter('repeat').value:
@@ -331,6 +336,9 @@ class UpperLimbNode(Node):
             self.dxl.set_goal_velocity(0)
             #  self.stop()
             self.is_running = False
+            self.is_sending_upper_limb_state = False
+            time.sleep(1.0)
+            self.dxl.disable_torque()
             return
 
         # Read sensors
@@ -382,7 +390,10 @@ class UpperLimbNode(Node):
 
         state_msg = UpperLimbState()
         state_msg.state = state
-        state_msg.repeat = self.r
+        if self.r == -1:
+            state_msg.repeat = 0
+        else:
+            state_msg.repeat = self.r
         state_msg.weight = loadcell_value
         state_msg.angle = position
         state_msg.current = float(current)
@@ -416,8 +427,9 @@ class UpperLimbNode(Node):
 
         # Set control parameters by task
         if request.task == UpperLimbCommand.Request.TASK_1:
-            self.m = 0.5
-            self.c = 10
+            #0.5,10
+            self.m = 0.1
+            self.c = 15
         elif request.task == UpperLimbCommand.Request.TASK_2:
             self.m = 0.1
             self.c = 50
@@ -428,15 +440,14 @@ class UpperLimbNode(Node):
         if request.command == UpperLimbCommand.Request.COMMAND_START_STOP:
             self.is_running = not self.is_running
             if self.is_running:
+                self.dxl.disable_torque() # Disable Dynamixel Torque
+                self.dxl.set_operating_mode(OP_VELOCITY) # Set operating mode to velocity
                 self.dxl.enable_torque()
-            #  time.sleep(2.0)
-            #  self.is_running = True
-        #  elif request.command == UpperLimbCommand.Request.COMMAND_STOP:
-            #  self.is_running = False
         elif request.command == UpperLimbCommand.Request.COMMAND_RESET:
             if self.is_running:
                 self.is_running = False
                 time.sleep(2.0)
+            self.is_sending_upper_limb_state = True
             self.current_time = 0.0
             self.direction = -1
             self.flag = 2

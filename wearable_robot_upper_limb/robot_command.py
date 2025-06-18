@@ -40,7 +40,7 @@ class UpperLimbCommanderNode(Node):
         self.timer = self.create_timer(0.1, self.publish_button_states)  # Publish every 0.1 second; 10Hz
 
         # Call reset command when the node is started
-        self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=UpperLimbCommand.Request.COMMAND_RESET)) # Reset command
+        #self.upper_limb_command_client.call_async(UpperLimbCommand.Request(task=self.selected_task, command=UpperLimbCommand.Request.COMMAND_RESET)) # Reset command
         self.get_logger().info(f"Task {self.selected_task} and Reset command is called.")
 
     def read_buttons_loop(self):

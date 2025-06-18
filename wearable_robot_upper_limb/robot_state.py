@@ -12,14 +12,14 @@ class UpperLimbStateOutNode(Node):
         
         # Subscribers
         self.upper_limb_state_sub = self.create_subscription(UpperLimbState, 'upper_limb_status', self.upper_limb_state_callback, 10)
-        self.serial = serial.Serial(OUTPUT_SERIALPORT, 115200)
+        self.serial = serial.Serial(OUTPUT_SERIALPORT, 57600)
         
     def stop(self):
         self.get_logger().info('Stopping...')
  
     def upper_limb_state_callback(self, state_msg):
         state = state_msg.state
-        self.r = state_msg.repeat
+        self.r = int(state_msg.repeat / 2)
         loadcell_value = state_msg.weight
         position = state_msg.angle
         current = state_msg.current

@@ -23,9 +23,9 @@ class LoadCellNode(Node):
         self.lock = threading.Lock()
         self.stop_thread = threading.Event()
 
-        self.get_logger().info("Initializing load cell...")
-        self.init_calibration()
-        self.get_logger().info("Load cell initialized.")
+        #self.get_logger().info("Initializing load cell...")
+        #self.init_calibration()
+        #self.get_logger().info("Load cell initialized.")
 
         self.read_thread = threading.Thread(target=self.read_weight_loop)
         self.read_thread.start()
