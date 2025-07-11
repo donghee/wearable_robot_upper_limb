@@ -240,7 +240,9 @@ class UpperLimbNode(Node):
         self.declare_parameter('robot_weight', 200.0)  # g
         self.declare_parameter('l1', 0.18)  # m
         self.declare_parameter('l2', 0.30)  # m
+        #joe
         self.declare_parameter('repeat', 39) # start from zero, total 20 flexion and extention
+        #self.declare_parameter('repeat', 5) # start from zero, total 3 flexion and extention
         self.declare_parameter('delay_time', 1000)  # ms
         
         # Control parameters
@@ -346,7 +348,6 @@ class UpperLimbNode(Node):
         current_velocity = self.dxl.get_present_velocity() * 6  # 6 From KNU's firmware
         loadcell_value = self.read_loadcell()  # Implement according to your HX711 interface
         current = self.dxl.get_present_current()
-
         #  self.get_logger().info(f'direction: {self.direction}, velocity: {current_velocity}, positiion: {current_position}, theta: {self.theta}, current: {current}')
        
         # Calculate control
@@ -368,7 +369,6 @@ class UpperLimbNode(Node):
             
         # Impedance control
         delta_velocity = current_velocity - self.previous_velocity
-        #  delta_velocity = max(min(delta_velocity, 20.0), -20.0)
         acceleration = delta_velocity / self.DELTA_TIME
         acceleration = max(min(acceleration, 500.0), -500.0) # TODO: Need to check the limit value
         self.get_logger().info(f'acceleration: {acceleration}, velocity: {current_velocity}, delta_velocity: {delta_velocity}')
@@ -380,9 +380,15 @@ class UpperLimbNode(Node):
         #  self.dxl.set_goal_velocity(velocityT)
 
         self.publish_state(current_position, loadcell_value, current)
-        
+    
+    #joe Modify the speed on the flextion position at the Task 1    
     def calculate_velocity(self, position, acceleration, delta_force, theta):
         velocity = self.a * self.direction + (delta_force - self.m * acceleration - self.k * (position - theta)) / self.c
+        if self.selected_task == 1 and self.direction == 1: # TASK 1 with Flextion
+            velocity = -20 * self.direction + (delta_force - self.m * acceleration - self.k * (position - theta)) / self.c
+        if self.selected_task == 2:  # TAhhSK 2 with Flextion
+            velocity = -40 * self.direction + (delta_force - self.m * acceleration - self.k * (position - theta)) / self.c
+
         return max(min(velocity, 70.0), -70.0)
         
     def publish_state(self, position, loadcell_value, current):
@@ -427,12 +433,11 @@ class UpperLimbNode(Node):
 
         # Set control parameters by task
         if request.task == UpperLimbCommand.Request.TASK_1:
-            #0.5,10
-            self.m = 0.1
-            self.c = 15
-        elif request.task == UpperLimbCommand.Request.TASK_2:
             self.m = 0.1
             self.c = 50
+        elif request.task == UpperLimbCommand.Request.TASK_2:
+            self.m = 0.1
+            self.c = 15
         elif request.task == UpperLimbCommand.Request.TASK_3:
             self.c = 10000
 
