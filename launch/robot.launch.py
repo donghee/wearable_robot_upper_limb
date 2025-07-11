@@ -9,7 +9,9 @@ def generate_launch_description():
             executable='robot_control',
             name='robot_control',
             output='screen',
-            parameters=[]
+            parameters=[],
+            respawn=True,
+            respawn_delay=3.0,  # Optional: Delay in seconds before respawning
         ), 
         Node(
             package='wearable_robot_upper_limb',
