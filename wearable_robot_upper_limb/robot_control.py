@@ -23,6 +23,7 @@ ADDR_PROFILE_VELOCITY   = 112
 ADDR_OPERATING_MODE     = 11
 ADDR_MIN_POSITION_LIMIT = 48
 ADDR_MAX_POSITION_LIMIT = 52
+ADDR_HARDWARE_ERROR_STATUS = 70
 
 OP_CURRENT_BASED_POSITION = 5
 OP_VELOCITY = 1
@@ -219,6 +220,24 @@ class DynamixelController:
         elif dxl_error != 0:
             self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
 
+    def reboot(self):
+        self.logger.info("Reboot")
+        dxl_comm_result, dxl_error = self.packetHandler.reboot(self.portHandler, self.DXL_ID)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+        time.sleep(3)
+
+    def get_hardware_error_status(self):
+        dxl_present_hw_error, dxl_comm_result, dxl_error = self.packetHandler.read1ByteTxRx(self.portHandler, self.DXL_ID, ADDR_HARDWARE_ERROR_STATUS)
+        if dxl_comm_result != COMM_SUCCESS:
+            self.logger.info("%s" % self.packetHandler.getTxRxResult(dxl_comm_result))
+        elif dxl_error != 0:
+            self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
+        else:
+            self.logger.info("[ID:%03d] Get Hardware Error Status Succeeded. Error : %d" % (self.DXL_ID, dxl_present_hw_error))
+
     def close(self):
         self.disable_torque()
         self.portHandler.closePort()
@@ -278,6 +297,8 @@ class UpperLimbNode(Node):
 
         # Motor controller
         self.dxl = DynamixelController(self.get_logger())
+        self.dxl.get_hardware_error_status()
+        self.dxl.reboot()
         self.reset_motor_position()
 
 
