@@ -11,7 +11,7 @@ def generate_launch_description():
             output='screen',
             parameters=[],
             respawn=True,
-            respawn_delay=3.0,  # Optional: Delay in seconds before respawning
+            respawn_delay=5.0,  # Optional: Delay in seconds before respawning
         ), 
         Node(
             package='wearable_robot_upper_limb',
