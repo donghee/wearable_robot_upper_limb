@@ -237,6 +237,7 @@ class DynamixelController:
             self.logger.info("%s" % self.packetHandler.getRxPacketError(dxl_error))
         else:
             self.logger.info("[ID:%03d] Get Hardware Error Status Succeeded. Error : %d" % (self.DXL_ID, dxl_present_hw_error))
+        return dxl_present_hw_error
 
     def close(self):
         self.disable_torque()
@@ -297,7 +298,15 @@ class UpperLimbNode(Node):
 
         # Motor controller
         self.dxl = DynamixelController(self.get_logger())
-        self.dxl.get_hardware_error_status()
+
+        # Reste hardware errors
+        dynamixel_reboot_tries = 0
+        while(self.dxl.get_hardware_error_status() != 0 and dynamixel_reboot_tries < 5):
+            self.get_logger().info("Try to reset hardware errors of dynamixel motor")
+            self.dxl.reboot()
+            time.sleep(3)
+            dynamixel_reboot_tries += 1
+
         self.dxl.reboot()
         self.reset_motor_position()
 
