@@ -260,9 +260,7 @@ class UpperLimbNode(Node):
         self.declare_parameter('robot_weight', 200.0)  # g
         self.declare_parameter('l1', 0.18)  # m
         self.declare_parameter('l2', 0.30)  # m
-        #joe
-        self.declare_parameter('repeat', 39) # start from zero, total 20 flexion and extention
-        #self.declare_parameter('repeat', 5) # start from zero, total 3 flexion and extention
+        self.declare_parameter('repeat', 21) # start from zero, total 20 flexion and extention and extra flexion and extention for finishing
         self.declare_parameter('delay_time', 1000)  # ms
         
         # Control parameters
@@ -362,7 +360,7 @@ class UpperLimbNode(Node):
                 self.publish_state(current_position, loadcell_value, current)
             return
 
-        if self.r > self.get_parameter('repeat').value:
+        if self.r >= self.get_parameter('repeat').value * 2:
             self.dxl.disable_torque()
             self.get_logger().info(f'Task {self.selected_task} completed successfully')
             self.is_running = False
