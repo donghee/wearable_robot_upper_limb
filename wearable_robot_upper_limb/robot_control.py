@@ -355,7 +355,6 @@ class UpperLimbNode(Node):
     def control_loop(self):
         if not self.is_running:
             self.dxl.set_goal_velocity(0)
-            #self.dxl.disable_torque()
             if self.is_sending_upper_limb_state:
                 current_position = self.dxl.get_present_position()
                 loadcell_value = self.read_loadcell()  # Implement according to your HX711 interface
@@ -364,13 +363,10 @@ class UpperLimbNode(Node):
             return
 
         if self.r > self.get_parameter('repeat').value:
+            self.dxl.disable_torque()
             self.get_logger().info(f'Task {self.selected_task} completed successfully')
-            self.dxl.set_goal_velocity(0)
-            #  self.stop()
             self.is_running = False
             self.is_sending_upper_limb_state = False
-            time.sleep(1.0)
-            self.dxl.disable_torque()
             return
 
         # Read sensors
@@ -401,7 +397,7 @@ class UpperLimbNode(Node):
         delta_velocity = current_velocity - self.previous_velocity
         acceleration = delta_velocity / self.DELTA_TIME
         acceleration = max(min(acceleration, 500.0), -500.0) # TODO: Need to check the limit value
-        self.get_logger().info(f'acceleration: {acceleration}, velocity: {current_velocity}, delta_velocity: {delta_velocity}')
+        #self.get_logger().info(f'acceleration: {acceleration}, velocity: {current_velocity}, delta_velocity: {delta_velocity}')
         self.previous_velocity = current_velocity
 
         delta_force = loadcell_value + 50 - 300
@@ -434,9 +430,7 @@ class UpperLimbNode(Node):
         state_msg.angle = position
         state_msg.current = float(current)
 
-        # State : Flexion , Repeat : 6 , Weight : 475.40g , Elbow Angle : 125.22° , Current : -304.0000mA
-        # State : Extension , Repeat : 5 , Weight : -92.22g , Elbow Angle : 151.98° , Current : 46.0000mA
-        self.get_logger().info(f'State : {state}, Repeat : {self.r}, Weight : {loadcell_value:.2f}g, Elbow Angle : {position:.2f}°, Current : {current:.4f}mA')
+        #self.get_logger().info(f'State : {state}, Repeat : {self.r}, Weight : {loadcell_value:.2f}g, Elbow Angle : {position:.2f}°, Current : {current:.4f}mA')
 
         self.upper_limb_state_pub.publish(state_msg)
         
