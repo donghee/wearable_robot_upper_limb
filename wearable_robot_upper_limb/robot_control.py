@@ -9,6 +9,8 @@ import time
 from dynamixel_sdk import *
 import threading
 
+import math
+from .wearable_robot_api import Upperlimb_1DOF
 
 # Control table address
 # https://emanual.robotis.com/docs/en/dxl/x/xh430-v350/#control-table-description
@@ -280,7 +282,15 @@ class UpperLimbNode(Node):
 
         # Initialize Dynamixel
         self.previous_velocity = 0.0
-       
+
+        # Upperlimb_1DOF API
+        self.sensor_velocity = 0.0
+        self.sensor_force = 0.0
+        self.sensor_position = 0.0
+        self.target_th = 0.0
+        self.upperlimb = Upperlimb_1DOF(node=self)  # Gets singleton instance and sets node
+        self._load_task_module()
+
         # Publishers
         self.upper_limb_state_pub = self.create_publisher(UpperLimbState, 'upper_limb_status', 10)
         
@@ -313,6 +323,17 @@ class UpperLimbNode(Node):
         self.stop()
         self.dxl.close()
         self.get_logger().info("__del__ Port closed")
+
+    def _load_task_module(self):
+        """Load task module and call its setup function"""
+        try:
+            from . import task
+            self.task_module = task
+            task.setup()
+            self.get_logger().info('task module loaded and setup() called successfully')
+        except Exception as e:
+            self.get_logger().error(f'Failed to load task module: {e}')
+            self.task_module = None
 
     def reset_motor_position(self):
         self.dxl.ping() # ping to check if the motor is connected
@@ -391,6 +412,27 @@ class UpperLimbNode(Node):
         else:
             self.theta = -self.a * self.current_time / 1000 + 75
             
+        # Upperlimb_1DOF API task loop
+        self.sensor_position = current_position
+        self.sensor_velocity = current_velocity
+        self.sensor_force = loadcell_value + 50 - 300
+        self.target_th = math.radians(self.theta)  # Convert to radians
+        self.previous_velocity = self.sensor_velocity
+ 
+        if self.task_module: # If task module is loaded
+            try:
+                self.task_module.loop()
+                # Get velocity command from upperlimb API
+                velocityT = self.upperlimb.get_velocity_cmd()
+                self.previous_velocity = self.sensor_velocity # new_1208
+        	#self.dxl.set_goal_velocity(velocityT / 6) # 6 From KNU's firmware
+        	self.publish_state(current_position, loadcell_value, current)
+                self.get_logger().info(f'task velocity: {current_velocity}, position: {current_position}, theta: {self.theta}, velocity_cmd: {velocityT}')
+		return 
+            except Exception as e:
+                self.get_logger().error(f'Error in task.loop(): {e}')
+                # Fallback to original control logic
+
         # Impedance control
         delta_velocity = current_velocity - self.previous_velocity
         acceleration = delta_velocity / self.DELTA_TIME
