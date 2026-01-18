@@ -27,7 +27,8 @@ class UpperLimbStateOutNode(Node):
         # State : Flexion , Repeat : 6 , Weight : 475.40g , Elbow Angle : 125.22° , Current : -304.0000mA
         # State : Extension , Repeat : 5 , Weight : -92.22g , Elbow Angle : 151.98° , Current : 46.0000mA
         output = f'State : {state}, Repeat : {self.r}, Weight : {loadcell_value:.2f}g, Elbow Angle : {position:.2f}°, Current : {current:.4f}mA\r\n'
-        self.get_logger().info(output)
+        if self.r != 0:
+            self.get_logger().info(output)
         self.serial.write(output.encode())
 
         
